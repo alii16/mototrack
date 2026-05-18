@@ -135,7 +135,7 @@ DB_USERNAME=root
 DB_PASSWORD=
 
 # API Key untuk autentikasi ESP32
-ESP32_API_KEY=YOUR_IP_KEY
+ESP32_API_KEY=YOUR_API_KEY
 
 # Telegram Bot
 TELEGRAM_BOT_TOKEN=token_bot_kamu

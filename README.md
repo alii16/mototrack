@@ -169,7 +169,7 @@ const char* WIFI_SSID   = "NamaWiFi";
 const char* WIFI_PASS   = "PasswordWiFi";
 const char* SERVER_URL  = "http://192.168.x.x:8000"; // IP komputer (lokal)
                         // atau "https://namadomain.com" (setelah deploy)
-const char* API_KEY     = "esp32-naurah-k7x9mQ2p";   // sama dengan .env
+const char* API_KEY     = "API_key_kamu";   // sama dengan .env
 ```
 
 Install library yang dibutuhkan di Arduino IDE (**Tools → Manage Libraries**):

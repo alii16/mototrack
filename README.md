@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Laravel-11-red?logo=laravel" alt="Laravel 12"/>
+  <img src="https://img.shields.io/badge/Laravel-12-red?logo=laravel" alt="Laravel 12"/>
   <img src="https://img.shields.io/badge/ESP32-Arduino-blue?logo=arduino" alt="ESP32"/>
   <img src="https://img.shields.io/badge/Maps-Leaflet.js-green?logo=leaflet" alt="Leaflet"/>
   <img src="https://img.shields.io/badge/Notifikasi-Telegram-2CA5E0?logo=telegram" alt="Telegram"/>

@@ -6,10 +6,10 @@
 #include <HardwareSerial.h>
 
 // ============================================================
-const char* WIFI_SSID  = "Naurah";
-const char* WIFI_PASS  = "Umeputih";
-const char* SERVER_URL = "http://192.168.1.20:8000";
-const char* API_KEY    = "esp32-naurah-k7x9mQ2p";
+const char* WIFI_SSID  = "NAMA WIFI";
+const char* WIFI_PASS  = "PASSWORD WIFI";
+const char* SERVER_URL = "SERVER URL KAMU";
+const char* API_KEY    = "API KEY (cocokkan dengan file .env)";
 
 #define RELAY_PIN          2
 #define GPS_RX_PIN         4

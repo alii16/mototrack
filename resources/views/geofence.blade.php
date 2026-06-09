@@ -114,7 +114,7 @@
         </a>
         <a href="#" onclick="closeSidebar()"
           class="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-blue-50 text-blue-600 font-bold text-[13.5px] cursor-pointer no-underline mt-0.5">
-          <i data-lucide="circle-gauge" style="width:15px;height:15px"></i> Geofencing
+          <i data-lucide="goal" style="width:15px;height:15px"></i> Geofencing
         </a>
         <a href="{{ route('history') }}" onclick="closeSidebar()"
           class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-500 font-medium text-[13.5px] cursor-pointer hover:bg-blue-50 hover:text-blue-600 transition-all mt-0.5 no-underline">

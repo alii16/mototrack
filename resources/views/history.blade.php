@@ -164,7 +164,7 @@
         </a>
         <a href="{{ route('geofence') }}" onclick="closeSidebar()"
           class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-slate-500 font-medium text-[13.5px] cursor-pointer hover:bg-blue-50 hover:text-blue-600 transition-all mt-0.5 no-underline">
-          <i data-lucide="circle-gauge" style="width:15px;height:15px"></i> Geofencing
+          <i data-lucide="goal" style="width:15px;height:15px"></i> Geofencing
         </a>
         <a href="#" onclick="closeSidebar()"
           class="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-blue-50 text-blue-600 font-bold text-[13.5px] cursor-pointer no-underline mt-0.5">
@@ -268,12 +268,12 @@
 
           <div class="bg-white rounded-2xl px-4 md:px-[18px] py-3 md:py-4 shadow-sm flex items-start justify-between border border-slate-100">
             <div class="min-w-0 pr-2">
-              <div class="text-xs text-slate-500 font-semibold">Total Testing</div>
-              <div class="text-[22px] md:text-[26px] font-extrabold text-blue-500 mt-1 leading-none" id="statTesting">—</div>
-                <div class="text-[11px] mt-1.5 font-medium text-blue-400 truncate hidden sm:block">jam testing</div>
+              <div class="text-xs text-slate-500 font-semibold">Trip Hari Ini</div>
+              <div class="text-[22px] md:text-[26px] font-extrabold text-blue-500 mt-1 leading-none" id="statTripHariIni">—</div>
+              <div class="text-[11px] mt-1.5 font-medium text-blue-400 truncate hidden sm:block" id="statTripHariIniSub">perjalanan hari ini</div>
             </div>
-            <div class="w-8 h-8 md:w-9 md:h-9 rounded-[9px] bg-blue-50 flex items-center justify-center text-violet-500 flex-shrink-0">
-              <i data-lucide="timer" style="width:16px;height:16px"></i>
+            <div class="w-8 h-8 md:w-9 md:h-9 rounded-[9px] bg-blue-50 flex items-center justify-center text-blue-500 flex-shrink-0">
+              <i data-lucide="calendar-check" style="width:16px;height:16px"></i>
             </div>
           </div>
 

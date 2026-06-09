@@ -22,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
             \Illuminate\Session\Middleware\StartSession::class,
         ]);
     })
-        ->withExceptions(function (Exceptions $exceptions) {
+        
+    ->withExceptions(function (Exceptions $exceptions) {
         //
     })->create();

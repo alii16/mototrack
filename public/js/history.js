@@ -163,6 +163,20 @@ function updateStats() {
     document.getElementById("statDurasi").textContent = (totalMin / 60).toFixed(
         1,
     );
+
+    // Trip Hari Ini: sesi yang started_at >= awal hari ini (00:00:00) s/d sekarang
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const tripHariIni = allSessions.filter((s) => {
+        const t = new Date(s.started_at);
+        return t >= todayStart && t <= now;
+    }).length;
+    document.getElementById("statTripHariIni").textContent = tripHariIni;
+    document.getElementById("statTripHariIniSub").textContent =
+        tripHariIni === 0
+            ? "belum ada perjalanan"
+            : tripHariIni + " perjalanan hari ini";
 }
 
 // ── Dynamic Chart — last 7 days ──

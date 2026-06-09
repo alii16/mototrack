@@ -255,19 +255,19 @@ function updateRelay(state) {
     if (state) {
         badge.className =
             "flex items-center gap-1.5 bg-green-100 text-green-600 px-2.5 py-1 rounded-full text-[11px] font-bold flex-shrink-0";
-        badgeTxt.textContent = "Hidup";
+        badgeTxt.textContent = "Mati";
         r1.textContent = "Aktif";
         r1.style.color = "#2563eb";
-        engineEl.textContent = "Siap Nyala";
+        engineEl.textContent = "Tidak Bisa Nyala";
         engineEl.className =
             "font-semibold px-2 py-0.5 rounded-md text-[11px] bg-blue-100 text-blue-600";
     } else {
         badge.className =
             "flex items-center gap-1.5 bg-red-100 text-red-500 px-2.5 py-1 rounded-full text-[11px] font-bold flex-shrink-0";
-        badgeTxt.textContent = "Mati";
+        badgeTxt.textContent = "Hidup";
         r1.textContent = "Nonaktif";
         r1.style.color = "#94a3b8";
-        engineEl.textContent = "Tidak Bisa Nyala";
+        engineEl.textContent = "Siap Nyala";
         engineEl.className =
             "font-semibold px-2 py-0.5 rounded-md text-[11px] bg-slate-200 text-slate-600";
     }

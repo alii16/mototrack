@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Log;
 class EspController extends Controller
 {
     // Berapa detik tanpa kabar dari ESP32 dianggap "mati"
-    const OFFLINE_TIMEOUT = 45;
+    const OFFLINE_TIMEOUT = 90;
 
     // ─────────────────────────────────────────────────────
     // ENDPOINT UNTUK ESP32 (dilindungi middleware EspAuth)
@@ -22,7 +22,7 @@ class EspController extends Controller
 
     /**
      * ESP32 -> Laravel: terima satu titik GPS.
-     * Titik disimpan di Cache (RAM), BUKAN ke DB dulu.
+     * Titik disimpan di Cache (RAM).
      * Baru disimpan ke DB saat ESP32 terdeteksi offline.
      *
      * POST /api/device/gps
@@ -153,7 +153,6 @@ class EspController extends Controller
     public function history()
     {
         $logs = GpsLog::latest()
-            ->limit(20)
             ->get(['id', 'session_id', 'started_at', 'ended_at', 'track']);
 
         return response()->json($logs->map(fn($l) => [

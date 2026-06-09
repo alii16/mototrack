@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Distance Calculator</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+
+    <div class="w-full max-w-xl">
+        <div class="bg-white rounded-2xl shadow-xl p-6 md:p-8">
+
+            <h1 class="text-3xl font-bold text-slate-800 mb-2">
+                GPS Distance Calculator
+            </h1>
+
+            <p class="text-slate-500 mb-6">
+                Masukkan koordinat dengan format:
+                <span class="font-medium">latitude,longitude</span>
+            </p>
+
+            <div class="space-y-4">
+
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">
+                        Titik Referensi
+                    </label>
+
+                    <input
+                        id="pointA"
+                        type="text"
+                        placeholder="-3.679634,128.224104"
+                        class="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">
+                        Titik Kedua
+                    </label>
+
+                    <input
+                        id="pointB"
+                        type="text"
+                        placeholder="-3.679798,128.224030"
+                        class="w-full rounded-xl border border-slate-300 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    >
+                </div>
+
+                <button
+                    onclick="calculateDistance()"
+                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-xl transition"
+                >
+                    Hitung Jarak
+                </button>
+
+            </div>
+
+            <div
+                id="result"
+                class="hidden mt-6 rounded-xl bg-slate-50 border border-slate-200 p-5"
+            >
+                <h2 class="font-semibold text-slate-700 mb-2">
+                    Hasil Perhitungan
+                </h2>
+
+                <div class="text-4xl font-bold text-indigo-600">
+                    <span id="distanceValue">0</span>
+                    <span class="text-xl">meter</span>
+                </div>
+
+                <p class="text-sm text-slate-500 mt-2">
+                    Jarak garis lurus (Haversine Distance)
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        function parseCoordinate(value) {
+            const parts = value.trim().split(',');
+
+            if (parts.length !== 2) {
+                throw new Error('Format koordinat salah');
+            }
+
+            const lat = parseFloat(parts[0]);
+            const lng = parseFloat(parts[1]);
+
+            if (isNaN(lat) || isNaN(lng)) {
+                throw new Error('Koordinat tidak valid');
+            }
+
+            return { lat, lng };
+        }
+
+        function haversine(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+
+            const toRad = deg => deg * Math.PI / 180;
+
+            const dLat = toRad(lat2 - lat1);
+            const dLon = toRad(lon2 - lon1);
+
+            const a =
+                Math.sin(dLat / 2) ** 2 +
+                Math.cos(toRad(lat1)) *
+                Math.cos(toRad(lat2)) *
+                Math.sin(dLon / 2) ** 2;
+
+            const c = 2 * Math.atan2(
+                Math.sqrt(a),
+                Math.sqrt(1 - a)
+            );
+
+            return R * c;
+        }
+
+        function calculateDistance() {
+            try {
+                const pointA = parseCoordinate(
+                    document.getElementById('pointA').value
+                );
+
+                const pointB = parseCoordinate(
+                    document.getElementById('pointB').value
+                );
+
+                const distance = haversine(
+                    pointA.lat,
+                    pointA.lng,
+                    pointB.lat,
+                    pointB.lng
+                );
+
+                document.getElementById('distanceValue').textContent =
+                    distance.toFixed(2);
+
+                document
+                    .getElementById('result')
+                    .classList.remove('hidden');
+
+            } catch (error) {
+                alert(error.message);
+            }
+        }
+
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                calculateDistance();
+            }
+        });
+    </script>
+
+</body>
+</html>

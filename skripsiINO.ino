@@ -5,10 +5,10 @@
 #include <HardwareSerial.h>
 
 // ============================================================
-const char* WIFI_SSID  = "BUSET";
-const char* WIFI_PASS  = "haha9875";
-const char* SERVER_URL = "https://mototrack.codingbyali.site";
-const char* API_KEY    = "esp32-naurah-k7x9mQ2p";
+const char* WIFI_SSID  = "Nama WiFi";
+const char* WIFI_PASS  = "Sandi WiFi";
+const char* SERVER_URL = "Server yang sudah dihosting (atau pakai ip jaringan lokal)";
+const char* API_KEY    = "API Key (cocokkan dengan .env laravel)";
 
 #define RELAY_PIN          2
 #define GPS_RX_PIN         4
@@ -45,7 +45,6 @@ void pushGps() {
   HTTPClient http;
   http.setConnectTimeout(HTTP_TIMEOUT);
   http.setTimeout(HTTP_TIMEOUT);
-  // setReuse dihapus — koneksi shared menyebabkan blocking saat rebutan
 
   if (!http.begin(gpsClient, String(SERVER_URL) + "/api/device/gps")) return;
 
@@ -144,8 +143,8 @@ void setup() {
 
   Serial.printf("\nKoneksi ke WiFi: %s\n", WIFI_SSID);
   WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);   // ← reconnect otomatis di level driver
-  WiFi.persistent(true);         // ← simpan kredensial di flash
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(true);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
   while (WiFi.status() != WL_CONNECTED) {

@@ -5,10 +5,10 @@
 #include <HardwareSerial.h>
 
 // ============================================================
-const char* WIFI_SSID  = "BUSET";
-const char* WIFI_PASS  = "haha9875";
-const char* SERVER_URL = "https://mototrack.codingbyali.site";
-const char* API_KEY    = "esp32-naurah-k7x9mQ2p";
+const char* WIFI_SSID  = "Nama WiFi";
+const char* WIFI_PASS  = "Sandi WiFi";
+const char* SERVER_URL = "Server yang sudah dihosting (atau pakai ip jaringan lokal)";
+const char* API_KEY    = "API Key (cocokkan dengan .env laravel)";
 
 #define RELAY_PIN          2
 #define GPS_RX_PIN         4
@@ -47,7 +47,6 @@ void addCommonHeaders(HTTPClient &http) {
 void pushGps() {
   if (WiFi.status() != WL_CONNECTED) return;
   if (httpBusy) {
-    // Jangan reset lastGpsPush — coba lagi di iterasi berikutnya
     lastGpsPush = 0;
     Serial.println("[GPS] Skip — HTTP sedang sibuk");
     return;
@@ -96,7 +95,6 @@ void pushGps() {
 void pollCommand() {
   if (WiFi.status() != WL_CONNECTED) return;
   if (httpBusy) {
-    // Jangan reset lastCmdPoll — coba lagi di iterasi berikutnya
     lastCmdPoll = 0;
     Serial.println("[CMD] Skip — HTTP sedang sibuk");
     return;
@@ -158,7 +156,7 @@ void checkWifi() {
     gpsClient.setInsecure();
     cmdClient.stop();
     cmdClient.setInsecure();
-    httpBusy = false; // pastikan flag bersih setelah reconnect
+    httpBusy = false;
   } else {
     Serial.println("\n[WiFi] Gagal reconnect, coba lagi nanti...");
   }

@@ -13,6 +13,7 @@
   <img src="https://img.shields.io/badge/ESP32-Arduino-blue?logo=arduino" alt="ESP32"/>
   <img src="https://img.shields.io/badge/Maps-Leaflet.js-green?logo=leaflet" alt="Leaflet"/>
   <img src="https://img.shields.io/badge/Notifikasi-Telegram-2CA5E0?logo=telegram" alt="Telegram"/>
+  <img src="https://img.shields.io/badge/MQTT-EMQX%20Cloud-purple?logo=mqtt" alt="MQTT"/>
   <img src="https://img.shields.io/badge/Database-MySQL-orange?logo=mysql" alt="MySQL"/>
 </p>
 
@@ -30,12 +31,14 @@ Project ini merupakan tugas akhir (skripsi) yang membangun sistem **pelacakan ke
 
 Sistem ini juga dilengkapi fitur **geofencing** — pengguna dapat membuat area virtual di peta, dan sistem akan mengirimkan notifikasi otomatis ke Telegram setiap kali objek yang dipantau masuk atau keluar dari area tersebut.
 
+Kendali relay menggunakan protokol **MQTT** untuk komunikasi real-time dengan latensi rendah, menggantikan mekanisme HTTP polling yang sebelumnya digunakan.
+
 ---
 
 ## ✨ Fitur Utama
 
 - **Pelacakan GPS Real-time** — posisi ESP32 ditampilkan di peta dan diperbarui setiap beberapa detik tanpa reload halaman
-- **Kendali Relay Jarak Jauh** — nyalakan/matikan relay yang terhubung ke ESP32 langsung dari dashboard web
+- **Kendali Relay via MQTT** — nyalakan/matikan relay dari dashboard web dengan latensi rendah (~50–300ms) tanpa polling
 - **Geofence Management** — buat, edit, dan hapus area geofence di peta secara interaktif
 - **Notifikasi Telegram** — peringatan otomatis dikirim saat objek masuk atau keluar area geofence (event-based, tanpa spam)
 - **Riwayat Sesi Perjalanan** — setiap perjalanan disimpan ke database dan dapat ditampilkan ulang di peta
@@ -47,25 +50,28 @@ Sistem ini juga dilengkapi fitur **geofencing** — pengguna dapat membuat area 
 ## 🏗️ Arsitektur Sistem
 
 ```
-┌─────────────┐        HTTP (push)         ┌──────────────────┐
-│    ESP32    │ ─────────────────────────▶│                  │
-│ GPS + Relay │ ◀──────────── perintah ── │  Laravel Server  │
-└─────────────┘    API Key Authentication  │  (REST API)      │
-                                           │                  │
-┌─────────────┐        AJAX polling        │  MySQL Database  │
-│   Browser   │ ◀────────────────────────▶│                  │
-│  Dashboard  │    Session Authentication  └──────────────────┘
-│ (Leaflet.js)│                                     │
-└─────────────┘                                     ▼
-                                           ┌──────────────────┐
-                                           │  Telegram Bot    │
-                                           │  (Notifikasi)    │
-                                           └──────────────────┘
+  ┌──────────────┐  HTTP POST /api/device/gps (5 dtk)  ┌──────────────────────┐
+  │    ESP32     │ ─────────────────────────────────►  │                      │
+  │  GPS + Relay │                                     │   Laravel 12 Server  │
+  │  (di motor)  │ ◄── MQTT subscribe relay/command ─┐ │   mototrack.domain   │
+  └──────────────┘                                   │ │   MySQL + Cache      │
+                                                     │ └──────────────────────┘
+                               ┌─────────────────────┴───┐          │
+                               │   MQTT Broker           │          ▼
+                               │   Mosquitto (lokal)     │  ┌──────────────────┐
+                               │   EMQX Cloud (prod)     │  │  Telegram Bot    │
+                               └──────────────┬──────────┘  └──────────────────┘
+  ┌─────────────┐  AJAX /api/status (5 dtk)   │
+  │   Browser   │ ◄──────────────────────────►│
+  │  Dashboard  │                             │
+  │  Leaflet.js │ ◄── MQTT WS relay/state ────┘
+  └─────────────┘     (instan, tanpa polling)
 ```
 
 **Pola komunikasi:**
-- ESP32 **mendorong (push)** data GPS ke Laravel tiap 5 detik — bukan Laravel yang menarik dari ESP32
-- Browser melakukan **polling** ke Laravel tiap 2 detik untuk memperbarui tampilan
+- ESP32 **mendorong (push)** data GPS ke Laravel tiap 5 detik via HTTP
+- Kendali relay menggunakan **MQTT pub/sub** — browser publish perintah lewat Laravel, ESP32 subscribe dan langsung eksekusi tanpa polling
+- Browser subscribe ke broker MQTT via WebSocket untuk menerima update relay secara instan
 - Notifikasi Telegram dikirim **langsung dari server** saat ESP32 mengirim koordinat yang masuk/keluar geofence
 
 ---
@@ -75,9 +81,12 @@ Sistem ini juga dilengkapi fitur **geofencing** — pengguna dapat membuat area 
 | Komponen | Teknologi |
 |---|---|
 | Backend | Laravel 12 (PHP 8.2+) |
-| Frontend | Blade, Leaflet.js, Vanilla JS |
+| Frontend | Blade, Leaflet.js, Vanilla JS, MQTT.js |
 | Database | MySQL |
 | Mikrokontroler | ESP32 + Modul GPS (TinyGPS++) |
+| Protokol Relay | MQTT (PubSubClient) |
+| Broker MQTT (hosted) | EMQX Cloud Serverless |
+| Broker MQTT (lokal) | Mosquitto |
 | Notifikasi | Telegram Bot API |
 | Autentikasi | Laravel Breeze |
 | Cache | Laravel Cache (file/redis) |
@@ -107,6 +116,7 @@ Sistem ini juga dilengkapi fitur **geofencing** — pengguna dapat membuat area 
 - Node.js & NPM
 - MySQL
 - Arduino IDE (untuk upload firmware ESP32)
+- Mosquitto MQTT Broker (untuk development lokal)
 
 ### 1. Clone & Install Dependensi
 
@@ -140,42 +150,92 @@ ESP32_API_KEY=YOUR_API_KEY
 # Telegram Bot
 TELEGRAM_BOT_TOKEN=token_bot_kamu
 TELEGRAM_CHAT_ID=chat_id_kamu
+
+# MQTT — versi lokal (Mosquitto)
+MQTT_HOST=127.0.0.1
+MQTT_PORT=1883
+MQTT_TOPIC_RELAY_CMD=mototrack/naurah/relay/command
+MQTT_TOPIC_RELAY_STATE=mototrack/naurah/relay/state
+
+# MQTT — versi hosted (EMQX Cloud), aktifkan saat deploy
+# EMQX_API_URL=https://xxxx.ala.us-east-1.emqx.cloud:8443/api/v5
+# EMQX_API_KEY=your_api_key
+# EMQX_API_SECRET=your_api_secret
+# EMQX_TOPIC_RELAY_CMD=mototrack/naurah/relay/command
+# EMQX_TOPIC_RELAY_STATE=mototrack/naurah/relay/state
 ```
 
 ### 3. Migrasi Database
 
 ```bash
-# Buat database terlebih dahulu di MySQL
 mysql -u root -e "CREATE DATABASE esp32_tracker;"
 
 php artisan migrate
 php artisan db:seed  # opsional: data awal
 ```
 
-### 4. Jalankan Server
+### 4. Setup Mosquitto (lokal)
+
+Download dan install [Mosquitto](https://mosquitto.org/download) untuk Windows.
+
+Tambahkan konfigurasi berikut di bagian atas `C:\Program Files\mosquitto\mosquitto.conf` (buka Notepad as Administrator):
+
+```conf
+listener 1883 0.0.0.0
+allow_anonymous true
+
+listener 9001 0.0.0.0
+protocol websockets
+```
+
+Mosquitto berjalan otomatis sebagai Windows Service. Untuk restart setelah edit config: buka `services.msc` → **Mosquitto Broker** → Restart.
+
+### 5. Jalankan Server
 
 ```bash
-php artisan serve
+php artisan serve --host=0.0.0.0 --port=8000
 ```
+
+Flag `--host=0.0.0.0` wajib agar ESP32 bisa mengakses server dari jaringan lokal.
 
 Buka browser → `http://localhost:8000`
 
-### 5. Konfigurasi & Upload Firmware ESP32
+### 6. Tambahkan MQTT.js ke Dashboard
 
-Buka file `esp32_tracker.ino` di Arduino IDE, sesuaikan bagian konfigurasi:
+Tambahkan baris berikut di `resources/views/dashboard.blade.php` sebelum tag `</body>`, **sebelum** script `dashboard.js`:
+
+```html
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+```
+
+### 7. Konfigurasi & Upload Firmware ESP32
+
+Buka file `skripsiINO_lokal.ino` di Arduino IDE, sesuaikan bagian konfigurasi:
 
 ```cpp
-const char* WIFI_SSID   = "NamaWiFi";
-const char* WIFI_PASS   = "PasswordWiFi";
-const char* SERVER_URL  = "http://192.168.x.x:8000"; // IP komputer (lokal)
-                        // atau "https://namadomain.com" (setelah deploy)
-const char* API_KEY     = "API_key_kamu";   // sama dengan .env
+const char* WIFI_SSID  = "NamaWiFi";
+const char* WIFI_PASS  = "PasswordWiFi";
+const char* SERVER_URL = "http://192.168.x.x:8000"; // IP komputer (cek: ipconfig)
+const char* API_KEY    = "API_key_kamu";
+
+// MQTT — Mosquitto lokal
+const char* MQTT_HOST  = "192.168.x.x";  // IP komputer (sama dengan SERVER_URL)
+const int   MQTT_PORT  = 1883;
 ```
 
 Install library yang dibutuhkan di Arduino IDE (**Tools → Manage Libraries**):
-- `TinyGPS++` by Mikal Hart
 
-Upload sketch ke ESP32, buka Serial Monitor (baud 115200) — pastikan muncul `WiFi terhubung!`.
+| Library | Author |
+|---|---|
+| `TinyGPS++` | Mikal Hart |
+| `PubSubClient` | Nick O'Leary |
+
+Upload sketch ke ESP32, buka Serial Monitor (baud 115200). Pastikan muncul:
+```
+WiFi terhubung!
+[MQTT] Terhubung!
+[MQTT] Subscribe: mototrack/naurah/relay/command
+```
 
 ---
 
@@ -186,21 +246,31 @@ Upload sketch ke ESP32, buka Serial Monitor (baud 115200) — pastikan muncul `W
 | Method | Endpoint | Fungsi |
 |---|---|---|
 | POST | `/api/device/gps` | Kirim data GPS dari ESP32 |
-| GET  | `/api/device/command` | Ambil perintah relay terbaru |
+| GET  | `/api/device/command` | Ambil state relay terbaru (fallback saat reconnect) |
 
 ### Untuk Browser (butuh login)
 
 | Method | Endpoint | Fungsi |
 |---|---|---|
 | GET | `/api/status` | Status ESP32, GPS, dan relay |
-| POST | `/api/relay/on` | Nyalakan relay |
-| POST | `/api/relay/off` | Matikan relay |
+| POST | `/api/relay/on` | Nyalakan relay (publish MQTT) |
+| POST | `/api/relay/off` | Matikan relay (publish MQTT) |
 | GET | `/api/history` | Riwayat sesi perjalanan |
 | POST | `/api/session/save` | Simpan sesi aktif |
 | GET | `/api/geofences` | Daftar geofence |
 | POST | `/api/geofences` | Tambah geofence |
 | PUT | `/api/geofences/{id}` | Update geofence |
 | DELETE | `/api/geofences/{id}` | Hapus geofence |
+
+---
+
+## 📨 Topik MQTT
+
+| Topic | Publisher | Subscriber | Keterangan |
+|---|---|---|---|
+| `mototrack/naurah/relay/command` | Laravel | ESP32 | Perintah ON/OFF relay, payload `"1"` / `"0"` |
+| `mototrack/naurah/relay/state` | Laravel | Browser | State relay terakhir, **retained** — sync saat reconnect |
+| `mototrack/naurah/relay/confirm` | ESP32 | Browser (testing) | Konfirmasi relay sudah berubah secara fisik |
 
 ---
 
@@ -234,17 +304,38 @@ geofences
 
 ## 📦 Deploy ke Hosting
 
-Setelah deploy, **hanya satu baris** yang perlu diubah di firmware ESP32:
+### 1. Ganti file yang digunakan
 
-```cpp
-// Ganti:
-const char* SERVER_URL = "http://192.168.x.x:8000";
+| File lokal | File hosted |
+|---|---|
+| `skripsiINO_lokal.ino` | `skripsiINO_public.ino` |
+| `EspController.php` | `EspController_public.php` (paste  isinya ke app/Http/Controllers/Api/EspController.php) |
+| `dashboard_lokal.js` | `dashboard_final.js` (dengan konfigurasi EMQX) |
 
-// Menjadi:
-const char* SERVER_URL = "https://namadomain.com";
+### 2. Konfigurasi `.env` di server
+
+```env
+EMQX_API_URL=https://xxxx.ala.us-east-1.emqx.cloud:8443/api/v5
+EMQX_API_KEY=your_api_key
+EMQX_API_SECRET=your_api_secret
+EMQX_TOPIC_RELAY_CMD=mototrack/naurah/relay/command
+EMQX_TOPIC_RELAY_STATE=mototrack/naurah/relay/state
 ```
 
-Tambahkan `#define USE_HTTPS` di baris paling atas sketch untuk mengaktifkan koneksi HTTPS.
+### 3. Update firmware ESP32
+
+Sesuaikan nilai berikut di `skripsiINO_mqtt.ino`:
+
+```cpp
+const char* SERVER_URL = "https://namadomain.com";
+
+const char* MQTT_HOST  = "xxxx.ala.us-east-1.emqx.cloud";
+const int   MQTT_PORT  = 8883;   // TLS
+const char* MQTT_USER  = "username_emqx";
+const char* MQTT_PASS  = "password_emqx";
+```
+
+> **Catatan:** Pada versi hosted, Laravel mempublish perintah MQTT via **EMQX REST API** (HTTPS port 443) — bukan koneksi TCP langsung — sehingga kompatibel dengan shared hosting yang biasanya memblokir outbound port 8883.
 
 ---
 

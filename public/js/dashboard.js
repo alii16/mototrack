@@ -95,9 +95,15 @@ function fetchStatus() {
         .then((d) => {
             if (!d) return;
             updateEspBadge(d.esp_online);
-            updateRelay(d.relay);
+            // Relay hanya di-update dari HTTP jika MQTT tidak terhubung (fallback)
+            if (!mqttClient || !mqttClient.connected) {
+                updateRelay(d.relay);
+            }
             updateGPS(d);
-            setBar("Live ● " + new Date().toLocaleTimeString("id-ID"));
+            setBar(
+                (mqttClient && mqttClient.connected ? "MQTT ● " : "Live ● ") +
+                new Date().toLocaleTimeString("id-ID")
+            );
 
             // ← TAMBAHKAN INI: flush hanya saat transisi online→offline
             if (prevEspOnline === true && d.esp_online === false) {
@@ -255,19 +261,19 @@ function updateRelay(state) {
     if (state) {
         badge.className =
             "flex items-center gap-1.5 bg-green-100 text-green-600 px-2.5 py-1 rounded-full text-[11px] font-bold flex-shrink-0";
-        badgeTxt.textContent = "Hidup";
+        badgeTxt.textContent = "Mati";
         r1.textContent = "Aktif";
         r1.style.color = "#2563eb";
-        engineEl.textContent = "Siap Nyala";
+        engineEl.textContent = "Tidak Bisa Nyala";
         engineEl.className =
             "font-semibold px-2 py-0.5 rounded-md text-[11px] bg-blue-100 text-blue-600";
     } else {
         badge.className =
             "flex items-center gap-1.5 bg-red-100 text-red-500 px-2.5 py-1 rounded-full text-[11px] font-bold flex-shrink-0";
-        badgeTxt.textContent = "Mati";
+        badgeTxt.textContent = "Hidup";
         r1.textContent = "Nonaktif";
         r1.style.color = "#94a3b8";
-        engineEl.textContent = "Tidak Bisa Nyala";
+        engineEl.textContent = "Siap Nyala";
         engineEl.className =
             "font-semibold px-2 py-0.5 rounded-md text-[11px] bg-slate-200 text-slate-600";
     }
@@ -284,17 +290,22 @@ function updateGPS(d) {
         : "Offline";
     gpsEl.style.color =
         online && d.gps_valid ? "#22c55e" : online ? "#f59e0b" : "#ef4444";
+    const sat = d.satellites ?? 0;
+    const satLabel = sat >= 10 ? "Sgt Kuat" : sat >= 7 ? "Kuat" : sat >= 4 ? "Sedang" : "Lemah";
     document.getElementById("stat-gps-sub").textContent = online
         ? `Sinyal ${d.satellites ?? 0} satelit`
         : "ESP tidak terhubung";
+    document.getElementById("stat-sat-sub").textContent = online && d.gps_valid
+        ? `Sinyal ${satLabel}`
+        : "Sinyal –";
     document.getElementById("stat-sat").innerHTML =
-        `${d.satellites ?? "–"} <span class="text-[13px] font-medium text-slate-400">sat</span>`;
+        `${sat} <span class="text-[13px] font-medium text-slate-400">sat</span>`;
     if (valid) {
         lastKnownLat = parseFloat(d.lat);
         lastKnownLng = parseFloat(d.lng);
         const ll = [lastKnownLat, lastKnownLng];
         document.getElementById("coord-display").textContent =
-            `${lastKnownLat.toFixed(4)}°S, ${lastKnownLng.toFixed(4)}°E`;
+            `${lastKnownLat.toFixed(5)}°S, ${lastKnownLng.toFixed(5)}°E`;
         currentMarker
             .setLatLng(ll)
             .bindPopup(
@@ -319,17 +330,22 @@ function toggleRelay() {
     const btn = document.getElementById("relay-btn");
     btn.disabled = true;
     const turningOn = !currentRelay;
+
+    // Optimistic update — langsung update UI tanpa tunggu response
+    updateRelay(turningOn);
+
     fetch(turningOn ? "/api/relay/on" : "/api/relay/off", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": CSRF },
     })
         .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
         .then((d) => {
-            updateRelay(d.relay);
             btn.disabled = false;
             motoToast("success", turningOn ? "Relay berhasil dinyalakan." : "Relay berhasil dimatikan.");
         })
         .catch((e) => {
+            // Rollback UI jika request gagal
+            updateRelay(!turningOn);
             btn.disabled = false;
             motoToast("error", "Gagal mengubah relay: " + e.message);
         });
@@ -502,9 +518,58 @@ function motoToast(type, msg, duration = 3500) {
 // Alias untuk geofence alert lama (showToast dipanggil dari checkGeofenceAlerts)
 function showToast(msg) { motoToast("info", msg); }
 
+/* ═══════════════════════════════════════════════════════════
+ *  MQTT via WebSocket — Mosquitto Lokal (port 9001)
+ *  Ganti IP di bawah dengan IP komputer kamu (sama dengan SERVER_URL)
+ * ═══════════════════════════════════════════════════════════ */
+const MQTT_WS_URL       = "ws://192.168.1.100:9001/mqtt";  // ws:// bukan wss://
+const MQTT_USER         = "";   // kosong — tanpa auth
+const MQTT_PASS         = "";   // kosong — tanpa auth
+const TOPIC_RELAY_STATE = "mototrack/naurah/relay/state";
+
+let mqttClient = null;
+
+function mqttConnect() {
+    if (typeof mqtt === "undefined") {
+        console.warn("[MQTT] Library mqtt.js tidak tersedia, fallback ke HTTP polling.");
+        return;
+    }
+    mqttClient = mqtt.connect(MQTT_WS_URL, {
+        clientId:        "dashboard-web-" + Math.random().toString(36).slice(2, 8),
+        username:        MQTT_USER,
+        password:        MQTT_PASS,
+        clean:           true,
+        reconnectPeriod: 5000,
+        connectTimeout:  10000,
+    });
+
+    mqttClient.on("connect", () => {
+        console.log("[MQTT] WebSocket terhubung ke broker");
+        // Subscribe state relay — broker langsung kirim retained message terakhir
+        mqttClient.subscribe(TOPIC_RELAY_STATE, { qos: 1 }, (err) => {
+            if (err) console.error("[MQTT] Subscribe gagal:", err);
+            else console.log("[MQTT] Subscribe:", TOPIC_RELAY_STATE);
+        });
+    });
+
+    mqttClient.on("message", (topic, payload) => {
+        const msg = payload.toString().trim();
+        console.log("[MQTT] Pesan:", topic, "→", msg);
+        if (topic === TOPIC_RELAY_STATE) {
+            const isOn = (msg === "1" || msg === "true" || msg === "on");
+            updateRelay(isOn);
+        }
+    });
+
+    mqttClient.on("error",     (err) => console.error("[MQTT] Error:", err.message));
+    mqttClient.on("reconnect", ()    => console.log("[MQTT] Reconnecting..."));
+    mqttClient.on("offline",   ()    => console.warn("[MQTT] Offline, fallback ke polling"));
+}
+
 fetchStatus();
 fetchHistory();
 loadGeofences();
-setInterval(fetchStatus, 2000);
+mqttConnect();
+setInterval(fetchStatus, 5000);
 setInterval(fetchHistory, 100000);
 setInterval(loadGeofences, 30000);

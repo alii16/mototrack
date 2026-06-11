@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Testing Delay Relay — MotoTrack</title>
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    min-height: 100vh;
+    padding: 32px 16px;
+  }
+
+  .container { max-width: 680px; margin: 0 auto; }
+
+  /* ── Header ── */
+  .header { margin-bottom: 32px; }
+  .header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f8fafc;
+    letter-spacing: -0.3px;
+  }
+  .header p { font-size: 13px; color: #64748b; margin-top: 4px; }
+
+  /* ── Config card ── */
+  .card {
+    background: #1e2130;
+    border: 1px solid #2d3148;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #475569;
+    margin-bottom: 14px;
+  }
+
+  .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .config-grid.full { grid-template-columns: 1fr; }
+
+  .field label {
+    display: block;
+    font-size: 11px;
+    color: #64748b;
+    margin-bottom: 5px;
+  }
+  .field input {
+    width: 100%;
+    background: #0f1117;
+    border: 1px solid #2d3148;
+    border-radius: 7px;
+    color: #e2e8f0;
+    font-size: 13px;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .field input:focus { border-color: #4f6ef7; }
+
+  /* ── Status bar ── */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: #0f1117;
+    border: 1px solid #2d3148;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 12px;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #334155;
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .status-dot.connected { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+  .status-dot.connecting { background: #f59e0b; animation: pulse 1s infinite; }
+  .status-dot.error { background: #ef4444; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  #status-text { color: #94a3b8; }
+
+  /* ── Control panel ── */
+  .control-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .relay-btn {
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .relay-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .relay-btn span.sub { font-size: 11px; font-weight: 400; opacity: 0.7; }
+
+  .btn-on  { background: #16a34a; color: #fff; }
+  .btn-on:hover:not(:disabled)  { background: #15803d; }
+  .btn-off { background: #dc2626; color: #fff; }
+  .btn-off:hover:not(:disabled) { background: #b91c1c; }
+
+  /* ── Live timer ── */
+  .live-timer {
+    background: #1e2130;
+    border: 1px solid #2d3148;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    text-align: center;
+    min-height: 90px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  #timer-display {
+    font-size: 42px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -1px;
+    color: #f8fafc;
+    line-height: 1;
+  }
+  #timer-display.running { color: #4f6ef7; }
+  #timer-display.done-fast { color: #22c55e; }
+  #timer-display.done-slow { color: #f59e0b; }
+  #timer-label { font-size: 12px; color: #475569; margin-top: 2px; }
+
+  /* ── Stats row ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .stat-box {
+    background: #1e2130;
+    border: 1px solid #2d3148;
+    border-radius: 10px;
+    padding: 14px 12px;
+    text-align: center;
+  }
+  .stat-box .val {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f8fafc;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-box .lbl { font-size: 11px; color: #475569; margin-top: 2px; }
+
+  /* ── Log table ── */
+  .log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .log-header .card-title { margin-bottom: 0; }
+  .btn-clear {
+    font-size: 11px;
+    color: #475569;
+    background: none;
+    border: 1px solid #2d3148;
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .btn-clear:hover { color: #94a3b8; border-color: #475569; }
+
+  .log-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .log-table th {
+    text-align: left;
+    padding: 6px 10px;
+    color: #334155;
+    font-weight: 600;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #2d3148;
+  }
+  .log-table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid #1a1f2e;
+    color: #94a3b8;
+    font-variant-numeric: tabular-nums;
+  }
+  .log-table tr:last-child td { border-bottom: none; }
+  .log-table td.delay { font-weight: 600; }
+  .delay-fast  { color: #22c55e !important; }
+  .delay-mid   { color: #f59e0b !important; }
+  .delay-slow  { color: #ef4444 !important; }
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .badge-on  { background: #14532d; color: #4ade80; }
+  .badge-off { background: #450a0a; color: #f87171; }
+
+  .empty-log {
+    text-align: center;
+    padding: 32px;
+    color: #334155;
+    font-size: 13px;
+  }
+
+  /* ── Export ── */
+  .btn-export {
+    width: 100%;
+    margin-top: 12px;
+    padding: 10px;
+    background: none;
+    border: 1px solid #2d3148;
+    border-radius: 8px;
+    color: #64748b;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-export:hover { border-color: #4f6ef7; color: #4f6ef7; }
+
+  .note {
+    font-size: 11px;
+    color: #334155;
+    text-align: center;
+    margin-top: 24px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Testing Delay Relay</h1>
+    <p>Ukur delay dari tombol dashboard ditekan sampai ESP32 publish konfirmasi relay berubah</p>
+  </div>
+
+  <!-- Config -->
+  <div class="card">
+    <div class="card-title">Konfigurasi MQTT</div>
+    <div class="config-grid">
+      <div class="field">
+        <label>Broker Host</label>
+        <input type="text" id="cfg-host" value="192.168.1.8">
+      </div>
+      <div class="field">
+        <label>Port WebSocket</label>
+        <input type="text" id="cfg-port" value="9001">
+      </div>
+      <div class="field">
+        <label>Topic Konfirmasi ESP32 (subscribe)</label>
+        <input type="text" id="cfg-topic-confirm" value="mototrack/naurah/relay/confirm">
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <button class="relay-btn btn-on" style="width:100%;flex-direction:row;justify-content:center;gap:8px;padding:10px" onclick="connect()">
+        Hubungkan ke Broker
+      </button>
+    </div>
+  </div>
+
+  <!-- Status -->
+  <div class="status-bar">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">Belum terhubung — klik "Hubungkan ke Broker"</span>
+  </div>
+
+  <!-- Control -->
+  <div style="margin-bottom:16px">
+    <button class="relay-btn btn-on" id="btn-start" disabled onclick="startMeasure()"
+      style="width:100%;flex-direction:row;justify-content:center;gap:8px;padding:14px;font-size:14px">
+      ● Mulai Ukur
+      <span class="sub">Klik ini dulu, lalu tekan relay di dashboard</span>
+    </button>
+  </div>
+
+  <!-- Live timer -->
+  <div class="live-timer">
+    <div id="timer-display">—</div>
+    <div id="timer-label">Tekan tombol relay untuk mulai mengukur</div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="val" id="stat-count">0</div>
+      <div class="lbl">Percobaan</div>
+    </div>
+    <div class="stat-box">
+      <div class="val" id="stat-avg">—</div>
+      <div class="lbl">Rata-rata</div>
+    </div>
+    <div class="stat-box">
+      <div class="val" id="stat-min">—</div>
+      <div class="lbl">Tercepat</div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="card">
+    <div class="log-header">
+      <div class="card-title">Log Percobaan</div>
+      <button class="btn-clear" onclick="clearLog()">Hapus semua</button>
+    </div>
+    <div id="log-wrap">
+      <div class="empty-log">Belum ada data — tekan tombol relay untuk mulai</div>
+    </div>
+    <button class="btn-export" onclick="exportCSV()">⬇ Export CSV</button>
+  </div>
+
+  <p class="note">
+    Delay diukur dari tombol dashboard ditekan (t0) sampai ESP32<br>
+    publish konfirmasi ke topic <em>relay/confirm</em> dan diterima browser (t1).<br>
+    <strong style="color:#475569">Hijau</strong> &lt; 300ms &nbsp;·&nbsp;
+    <strong style="color:#475569">Kuning</strong> 300–800ms &nbsp;·&nbsp;
+    <strong style="color:#475569">Merah</strong> &gt; 800ms
+  </p>
+
+</div>
+
+<script>
+  let client = null;
+  let t0 = null;
+  let pendingAction = null;
+  let timerInterval = null;
+  const logs = [];
+
+  const TOPIC_CONFIRM = () => document.getElementById('cfg-topic-confirm').value.trim();
+
+  // ── Connect ──
+  function connect() {
+    const host = document.getElementById('cfg-host').value.trim();
+    const port = document.getElementById('cfg-port').value.trim();
+    const url  = `ws://${host}:${port}/mqtt`;
+
+    setStatus('connecting', `Menghubungkan ke ${url}...`);
+
+    if (client) { try { client.end(true); } catch(e){} }
+
+    client = mqtt.connect(url, {
+      clientId: 'relay-tester-' + Math.random().toString(36).slice(2,8),
+      clean: true,
+      connectTimeout: 8000,
+      reconnectPeriod: 0,
+    });
+
+    client.on('connect', () => {
+      setStatus('connected', `Terhubung ke ${url}`);
+      client.subscribe(TOPIC_CONFIRM(), { qos: 1 });
+      document.getElementById('btn-start').disabled = false;
+    });
+
+    client.on('message', (topic, payload) => {
+      if (topic !== TOPIC_CONFIRM()) return;
+      if (t0 === null || pendingAction === null) return;
+
+      const t1    = performance.now();
+      const delay = Math.round(t1 - t0);
+      const msg   = payload.toString().trim();
+
+      // pendingAction 'any' — terima konfirmasi apapun dari ESP32
+      const match = pendingAction === 'any' ||
+                    (pendingAction === 'on'  && msg === '1') ||
+                    (pendingAction === 'off' && msg === '0');
+      const action = msg === '1' ? 'on' : 'off';
+      if (!match) return; // abaikan retained message lama
+
+      stopTimer(delay);
+      addLog(action, delay);
+
+      t0 = null;
+      pendingAction = null;
+      document.getElementById('btn-start').disabled = false;
+    });
+
+    client.on('error', (err) => {
+      setStatus('error', 'Error: ' + err.message);
+    });
+
+    client.on('close', () => {
+      setStatus('', 'Koneksi terputus');
+      document.getElementById('btn-start').disabled = true;
+    });
+  }
+
+  // ── Mulai ukur: catat t0, tunggu konfirmasi dari ESP32 ──
+  function startMeasure() {
+    if (!client || !client.connected) return;
+    document.getElementById('btn-start').disabled = true;
+    // pendingAction tidak tahu ON/OFF karena tombol ada di dashboard
+    // — deteksi dari payload konfirmasi ESP32
+    pendingAction = 'any';
+    t0 = performance.now();
+    startTimer();
+  }
+
+  // ── Timer ──
+  function startTimer() {
+    const el    = document.getElementById('timer-display');
+    const label = document.getElementById('timer-label');
+    el.className = 'running';
+    label.textContent = 'Sekarang tekan relay di dashboard...';
+
+    timerInterval = setInterval(() => {
+      if (t0 === null) return;
+      const elapsed = Math.round(performance.now() - t0);
+      el.textContent = elapsed + ' ms';
+    }, 16);
+  }
+
+  function stopTimer(delay) {
+    clearInterval(timerInterval);
+    const el    = document.getElementById('timer-display');
+    const label = document.getElementById('timer-label');
+    el.textContent = delay + ' ms';
+
+    if (delay < 300) {
+      el.className = 'done-fast';
+      label.textContent = '✓ Cepat — konfirmasi diterima';
+    } else if (delay < 800) {
+      el.className = 'done-slow';
+      label.textContent = '~ Sedang — konfirmasi diterima';
+    } else {
+      el.className = 'done-slow';
+      label.textContent = '⚠ Lambat — konfirmasi diterima';
+    }
+  }
+
+  // ── Log ──
+  function addLog(action, delay) {
+    const now = new Date();
+    const time = now.toLocaleTimeString('id-ID', { hour12: false }) +
+                 '.' + String(now.getMilliseconds()).padStart(3, '0');
+
+    logs.unshift({ no: logs.length + 1, time, action, delay });
+    updateStats();
+    renderLog();
+  }
+
+  function renderLog() {
+    const wrap = document.getElementById('log-wrap');
+    if (!logs.length) {
+      wrap.innerHTML = '<div class="empty-log">Belum ada data</div>';
+      return;
+    }
+
+    const rows = logs.map(l => {
+      const cls = l.delay < 300 ? 'delay-fast' : l.delay < 800 ? 'delay-mid' : 'delay-slow';
+      const badge = l.action === 'on'
+        ? '<span class="badge badge-on">ON</span>'
+        : '<span class="badge badge-off">OFF</span>';
+      return `<tr>
+        <td>${logs.length - l.no + 1}</td>
+        <td>${l.time}</td>
+        <td>${badge}</td>
+        <td class="delay ${cls}">${l.delay} ms</td>
+      </tr>`;
+    }).join('');
+
+    wrap.innerHTML = `<table class="log-table">
+      <thead><tr>
+        <th>#</th><th>Waktu</th><th>Aksi</th><th>Delay</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  }
+
+  function updateStats() {
+    const delays = logs.map(l => l.delay);
+    const avg = Math.round(delays.reduce((a,b) => a+b, 0) / delays.length);
+    const min = Math.min(...delays);
+
+    document.getElementById('stat-count').textContent = logs.length;
+    document.getElementById('stat-avg').textContent   = avg + ' ms';
+    document.getElementById('stat-min').textContent   = min + ' ms';
+  }
+
+  function clearLog() {
+    logs.length = 0;
+    document.getElementById('stat-count').textContent = '0';
+    document.getElementById('stat-avg').textContent   = '—';
+    document.getElementById('stat-min').textContent   = '—';
+    document.getElementById('timer-display').textContent = '—';
+    document.getElementById('timer-display').className  = '';
+    document.getElementById('timer-label').textContent  = 'Tekan tombol relay untuk mulai mengukur';
+    renderLog();
+  }
+
+  // ── Export CSV ──
+  function exportCSV() {
+    if (!logs.length) return alert('Belum ada data untuk diekspor.');
+    const header = 'No,Waktu,Aksi,Delay (ms)\n';
+    const rows   = [...logs].reverse()
+      .map(l => `${logs.length - l.no + 1},${l.time},${l.action.toUpperCase()},${l.delay}`)
+      .join('\n');
+    const blob = new Blob([header + rows], { type: 'text/csv' });
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = `delay-relay-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  }
+
+  // ── Status helper ──
+  function setStatus(state, text) {
+    const dot  = document.getElementById('status-dot');
+    const span = document.getElementById('status-text');
+    dot.className  = 'status-dot ' + state;
+    span.textContent = text;
+  }
+</script>
+</body>
+</html>

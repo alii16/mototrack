@@ -400,6 +400,10 @@
 
   <!-- ══════════════════ SCRIPTS ══════════════════ -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- MQTT.js untuk WebSocket ke EMQX -->
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
   <script src="{{ asset('js/dashboard.js') }}"></script>
 </body>
 

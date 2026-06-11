@@ -25,4 +25,10 @@ Route::middleware('auth')->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
+Route::get('/test-mqtt', function () {
+    $cmd = '"C:\\Program Files\\mosquitto\\mosquitto_pub.exe" -h 127.0.0.1 -p 1883 -t "test/topic" -m "hello" 2>&1';
+    exec($cmd, $output, $code);
+    return response()->json(['code' => $code, 'output' => $output]);
+});
+
 require __DIR__.'/auth.php';

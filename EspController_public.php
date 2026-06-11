@@ -10,7 +10,7 @@ use App\Services\TelegramService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Http;  // <-- tambahan untuk MQTT publish
+use Illuminate\Support\Facades\Http;
 
 class EspController extends Controller
 {
@@ -148,8 +148,8 @@ class EspController extends Controller
         );
 
         // Publish ke MQTT
-        $this->mqttPublish(env('MQTT_TOPIC_RELAY_CMD',   'mototrack/naurah/relay/command'), '1', false);
-        $this->mqttPublish(env('MQTT_TOPIC_RELAY_STATE', 'mototrack/naurah/relay/state'),   '1', true);
+        $this->mqttPublish(env('EMQX_TOPIC_RELAY_CMD',   'mototrack/naurah/relay/command'), '1', false);
+        $this->mqttPublish(env('EMQX_TOPIC_RELAY_STATE', 'mototrack/naurah/relay/state'),   '1', true);
 
         return response()->json(['relay' => true]);
     }
@@ -166,26 +166,23 @@ class EspController extends Controller
         );
 
         // Publish ke MQTT
-        $this->mqttPublish(env('MQTT_TOPIC_RELAY_CMD',   'mototrack/naurah/relay/command'), '0', false);
-        $this->mqttPublish(env('MQTT_TOPIC_RELAY_STATE', 'mototrack/naurah/relay/state'),   '0', true);
+        $this->mqttPublish(env('EMQX_TOPIC_RELAY_CMD',   'mototrack/naurah/relay/command'), '0', false);
+        $this->mqttPublish(env('EMQX_TOPIC_RELAY_STATE', 'mototrack/naurah/relay/state'),   '0', true);
 
         return response()->json(['relay' => false]);
     }
 
     // ─────────────────────────────────────────────────────
-    // MQTT PUBLISH via php-mqtt/client → Mosquitto lokal
+    // MQTT PUBLISH via EMQX HTTP API
     // ─────────────────────────────────────────────────────
 
     /**
-     * Publish pesan MQTT langsung ke broker Mosquitto lokal (TCP, tanpa TLS, tanpa auth).
+     * Publish pesan MQTT via EMQX REST API.
      *
-     * Install library: composer require php-mqtt/client
-     *
-     * .env yang dibutuhkan:
-     *   MQTT_HOST=127.0.0.1
-     *   MQTT_PORT=1883
-     *   MQTT_TOPIC_RELAY_CMD=mototrack/naurah/relay/command
-     *   MQTT_TOPIC_RELAY_STATE=mototrack/naurah/relay/state
+     * Kenapa pakai HTTP API bukan library PHP MQTT?
+     * → Shared hosting biasanya blokir outbound TCP ke port 8883.
+     *   Tapi port 443/HTTPS selalu terbuka. EMQX Cloud menyediakan
+     *   REST API di port 8443 atau 443 untuk keperluan ini.
      *
      * @param string $topic   Topic MQTT tujuan
      * @param string $payload Isi pesan (string)
@@ -193,19 +190,33 @@ class EspController extends Controller
      */
     private function mqttPublish(string $topic, string $payload, bool $retain = false): void
     {
-        $host     = env('MQTT_HOST', '127.0.0.1');
-        $port     = (int) env('MQTT_PORT', 1883);
-        $pub      = 'C:\\Program Files\\mosquitto\\mosquitto_pub.exe';
-        $retainFlag = $retain ? ' -r' : '';
+        $apiUrl    = rtrim(env('EMQX_API_URL', ''), '/');
+        $apiKey    = env('EMQX_API_KEY', '');
+        $apiSecret = env('EMQX_API_SECRET', '');
 
-        $cmd = "\"{$pub}\" -h {$host} -p {$port} -t \"{$topic}\" -m \"{$payload}\"{$retainFlag} 2>&1";
+        if (!$apiUrl || !$apiKey || !$apiSecret) {
+            Log::warning('[MQTT] EMQX API credentials belum dikonfigurasi di .env');
+            return;
+        }
 
-        exec($cmd, $output, $code);
+        try {
+            $response = Http::withBasicAuth($apiKey, $apiSecret)
+                ->timeout(5)
+                ->post("{$apiUrl}/publish", [
+                    'topic'   => $topic,
+                    'payload' => $payload,
+                    'qos'     => 1,
+                    'retain'  => $retain,
+                ]);
 
-        if ($code === 0) {
-            Log::info("[MQTT] Publish OK → topic={$topic} payload={$payload}");
-        } else {
-            Log::error("[MQTT] Publish gagal → " . implode(' ', $output));
+            if ($response->successful()) {
+                Log::info("[MQTT] Publish OK → topic={$topic} payload={$payload} retain=" . ($retain ? 'true' : 'false'));
+            } else {
+                Log::error("[MQTT] Publish gagal → HTTP {$response->status()}: {$response->body()}");
+            }
+
+        } catch (\Exception $e) {
+            Log::error('[MQTT] Publish exception: ' . $e->getMessage());
         }
     }
 

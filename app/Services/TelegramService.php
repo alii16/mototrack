@@ -78,7 +78,7 @@ class TelegramService
 
         if ($event === 'exit') {
             $message =
-                "✅ <b>Keluar dari area geofence</b>
+                "🔔 <b>Keluar dari area geofence</b>
 
 " .
                 "📍 <b>Area:</b> {$name}
